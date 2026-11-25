@@ -1,0 +1,37 @@
+*.iml
+.gradle/
+build/
+.idea/
+local.properties
+*.apk
+*.aab
+*.keystore
+*.jks
+.cxx/
+keystore/
+rootfs下载检测参考脚本.sh
+底部导航水滴切换特效.zip
+.monkeycode/
+.monkeycode-tmp-files/
+.staging/
+*.zip
+gradle.properties
+
+# 开发环境辅助文件（不属于项目源码）
+.upload_server.py
+upload_server.py
+__pycache__/
+dist/
+uploads/
+website/
+twrp_dodge/
+native/payload_extract_jni/target/
+*.pyc
+blob_download_1791229037373.png
+
+# 本地签名配置（含密码，禁止提交）
+signing-gradle.properties
+
+# 发布用 APK 单独纳入
+!releases/
+!releases/*.apk

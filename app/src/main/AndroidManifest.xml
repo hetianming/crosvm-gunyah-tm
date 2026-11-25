@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.BIND_DEVICE_ADMIN" />
+
+    <application
+        android:name=".App"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.App"
+        android:extractNativeLibs="true"
+        android:usesCleartextTraffic="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:theme="@style/Theme.App.Glass"
+            android:configChanges="uiMode"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".VmDisplayActivity"
+            android:exported="false"
+            android:theme="@style/Theme.App.Gunyah"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|density"
+            android:resizeableActivity="true" />
+
+        <activity
+            android:name=".FilePickerActivity"
+            android:exported="false"
+            android:label="选择镜像文件" />
+
+        <!-- 启动控制台：实时 boot.log + 检测 UEFI 自动进显示器 -->
+        <activity
+            android:name=".BootActivity"
+            android:exported="false"
+            android:label="启动控制台"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+
+        <!-- device owner：静默进入屏幕固定 + 关闭锁定期间的系统 UI（含底部导航） -->
+        <receiver
+            android:name=".core.DeviceOwnerReceiver"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 原生显示的 root 服务：查 crosvm_display binder + 托管 4 路输入 socket -->
+        <service
+            android:name=".core.NativeDisplayRootService"
+            android:exported="false" />
+    </application>
+</manifest>

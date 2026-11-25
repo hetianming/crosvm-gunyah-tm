@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 极简平台主题，不依赖 Material 库 -->
+    <style name="Theme.App" parent="@android:style/Theme.DeviceDefault.Light.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowBackground">#F5F6FB</item>
+        <!-- 浅色背景必须让状态栏图标变深色，否则时间/信号/电池是白的、在浅底上看不清 -->
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+
+    <!--
+        显示页：逐字对齐 Linux-Dsu 已验证能显示同一 VM 的 Theme.App.Gunyah。
+        Linux-Dsu 用 Material3.Light.NoActionBar + 透明 windowBackground + 关 forceDark，
+        全屏由代码在 DecorView post 之后设置（不是靠 Fullscreen 主题）。
+        SurfaceView 能否拿到 dmabuf-backed buffer / crosvm 的 sink 能否 import dmabuf，
+        受 Window 合成路径影响 —— 这是与已验证实现之间最后一块未对齐的配置。
+    -->
+    <style name="Theme.App.Gunyah" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:forceDarkAllowed">false</item>
+    </style>
+
+    <!-- 主页：液态玻璃深色底。光晕由 GlassBackgroundView 绘制，这里只管窗口与状态栏 -->
+    <style name="Theme.App.Glass" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#0A0D18</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:forceDarkAllowed">false</item>
+    </style>
+</resources>
