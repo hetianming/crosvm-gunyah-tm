@@ -137,6 +137,7 @@ class MainActivity : BaseActivity() {
         private const val K_GPU_MODE = "gpu_mode"         // 显示模式：simplefb / iosdrm(DRM 3D)
         private const val K_RES_WIN = "res_win"           // v1.9.38：Win 模式自定义分辨率 "宽x高"，空=用预设
         private const val K_RES_LINUX = "res_linux"       // v1.9.38：Linux 模式自定义分辨率
+        private const val K_UI_TARGET_W = "ui_target_w"  // v1.9.83：界面大小档位的 guest 逻辑目标宽度（800/600/480）
     }
 
     /** v1.9.38：按模式读取自定义分辨率；空表示用预设（手机默认）。 */
@@ -146,6 +147,17 @@ class MainActivity : BaseActivity() {
     private fun setCustomRes(m: Int, res: String) {
         sp.edit().putString(if (m == MODE_WIN11) K_RES_WIN else K_RES_LINUX, res.trim()).apply()
     }
+
+    /** v1.9.83：界面大小档位。targetW 越小 → guest 帧缓冲越小 → 放大到全屏后按钮/字体越大。 */
+    private data class UiSize(val label: String, val targetW: Int, val desc: String)
+    private val uiSizes = listOf(
+        UiSize("标准", 800, "和原来一样"),
+        UiSize("放大 UI", 600, "按钮约大 1.3 倍"),
+        UiSize("超大 UI", 480, "按钮约大 1.7 倍，字体更清楚"),
+    )
+
+    private fun uiTargetW(): Int = sp.getInt(K_UI_TARGET_W, 800)
+    private fun setUiTargetW(w: Int) { sp.edit().putInt(K_UI_TARGET_W, w).apply() }
 
     /** 当前模式实际生效的分辨率（自定义优先，否则预设）。 */
     private fun effectiveRes(m: Int): String {
@@ -1346,11 +1358,39 @@ class MainActivity : BaseActivity() {
         }
         val btnResPhone = presetResBtn("手机默认", if (mode == MODE_WIN11) winPreset.resolution else linuxPreset.resolution)
         val btnResTablet = presetResBtn("平板横屏 16:10", "1920x1200")
+        // dialog 先声明，供下面各按钮点击时 dismiss
+        lateinit var dialog: HapticDialog
         val btnResApply = Button(this).apply {
             text = "应用分辨率"; textSize = 13.5f; isAllCaps = false
             background = Glass.outlinedButton(this@MainActivity)
             setTextColor(Glass.indicator()); minHeight = dp(44f); maxHeight = dp(44f)
             Glass.crystalTouch(this)
+        }
+
+        // v1.9.83：界面大小三档 —— 真正决定 Win11 窗口按钮/字体物理大小的是 guest 逻辑分辨率。
+        // 原生显示模式下手填分辨率被 logicalGuestRes 忽略，所以这里直接调它的目标宽度，重启 VM 生效。
+        val uiSizeTitle = TextView(this).apply {
+            text = "🔍 界面大小（Win11 按钮太小点不到？选大一档，重启 VM 生效）"
+            textSize = 13f; setTextColor(Glass.indicator())
+        }
+        fun uiSizeBtn(sz: UiSize): Button = Button(this).apply {
+            val cur = uiTargetW() == sz.targetW
+            text = if (cur) "${sz.label} ✓" else sz.label
+            textSize = 12f; isAllCaps = false; isSingleLine = true
+            background = if (cur) Glass.outlinedButton(this@MainActivity) else Glass.button(this@MainActivity)
+            setTextColor(if (cur) Glass.indicator() else Glass.textPrimary())
+            minHeight = dp(40f); maxHeight = dp(40f); Glass.crystalTouch(this)
+            setOnClickListener {
+                setUiTargetW(sz.targetW)
+                dialog.dismiss()
+                Toast.makeText(this@MainActivity, "界面大小已设为「${sz.label}」：${sz.desc}（重启 VM 生效）", Toast.LENGTH_SHORT).show()
+                pickMode(this@MainActivity.mode)
+            }
+        }
+        val btnUiBtns = uiSizes.map { uiSizeBtn(it) }
+        val uiSizeDesc = TextView(this).apply {
+            text = "说明：原生显示下界面大小由此项控制，上面的分辨率输入框仅对平板 VNC 模式有效。"
+            textSize = 11f; setTextColor(Glass.textHint())
         }
 
         val msg = TextView(this).apply {
@@ -1362,9 +1402,6 @@ class MainActivity : BaseActivity() {
                 "Linux 可安装 mesa-guest.deb 开启 3D。"
             textSize = 12.5f; setTextColor(Glass.textLog()); setLineSpacing(3f, 1.16f)
         }
-
-        // dialog 先声明，供下面选项按钮点击时 dismiss
-        lateinit var dialog: HapticDialog
 
         btnResApply.setOnClickListener { applyRes(resInput.text.toString()) }
         fun optionBtn(label: String, gm: String, desc: String): LinearLayout {
@@ -1428,6 +1465,23 @@ class MainActivity : BaseActivity() {
             addView(btnResApply, LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply { topMargin = dp(10f) })
+            // v1.9.83：界面大小三档
+            addView(uiSizeTitle, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(16f) })
+            addView(LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                btnUiBtns.forEachIndexed { i, b ->
+                    addView(b, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                        if (i > 0) leftMargin = dp(6f)
+                    })
+                }
+            }, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(8f) })
+            addView(uiSizeDesc, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(6f) })
             // 分隔 + 显示模式说明
             addView(msg, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
@@ -1989,6 +2043,7 @@ class MainActivity : BaseActivity() {
             cpus = p.cpus
             // v1.9.38：自定义分辨率优先（平板适配），未设置则用模式预设
             resolution = effectiveRes(m)
+            uiTargetW = uiTargetW()   // v1.9.83：界面大小档位直接影响实际 guest 分辨率
             // v1.9.80：显示模式二选一——simplefb(稳定) / GPU 3D·DRM(iosdrm)。
             // 花屏的 GPU 2D(ios2d)/GPU 3D(iosgfx) 已删（老存档在 gpuMode() 里迁回 simplefb）。
             // GPU 起不来会自动逐级回退 simplefb，不会连累稳定启动。

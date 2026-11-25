@@ -13,8 +13,8 @@ android {
         applicationId = "com.gunyah.launcher"
         minSdk = 28
         targetSdk = 28
-        versionCode = 138
-        versionName = "1.9.82"
+        versionCode = 139
+        versionName = "1.9.83"
         ndk {
             abiFilters += listOf("arm64-v8a")
         }
