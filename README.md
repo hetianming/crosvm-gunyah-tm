@@ -5,7 +5,7 @@
 `GunyahVM` 是一个面向高通平台的安卓虚拟机 APP。它把 crosvm、UEFI 固件、内核模块等一整套工具链打包下载到手机上，配合大页内存与原生显示，直接在手机里启动 Windows To Go、PE 维护盘或 Linux 发行版。vmpkg 备份格式与 DroidVM 官方兼容（ZSTD 压缩），可导入、导出成品镜像。
 
 - **包名**：`com.gunyah.launcher`
-- **当前版本**：`1.9.81`（versionCode 137）
+- **当前版本**：`1.9.82`（versionCode 138）
 - **架构**：仅 `arm64-v8a`
 - **最低安卓版本**：Android 9（API 28）
 

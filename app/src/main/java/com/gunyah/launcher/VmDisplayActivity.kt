@@ -596,7 +596,13 @@ class VmDisplayActivity : BaseActivity(), SurfaceHolder.Callback {
     private fun bindRoot() {
         try {
             bound = true
-            RootService.bind(Intent(this, NativeDisplayRootService::class.java), rootConn)
+            // v1.9.82：与 InputServiceClient 一致地用 daemon 模式。两处必须同标志，
+            // 否则 libsu 会按 component+daemon 建成两个独立 root 进程，输入 socket 与
+            // 显示查询分离；daemon 进程还能在 APP 划后台被杀后保住 4 路输入 socket。
+            val intent = Intent(this, NativeDisplayRootService::class.java).apply {
+                addCategory(RootService.CATEGORY_DAEMON_MODE)
+            }
+            RootService.bind(intent, rootConn)
         } catch (t: Throwable) {
             Log.e(TAG, "bind root failed", t)
             scheduleFallback(Lang.t("root 服务绑定失败"))
@@ -2950,10 +2956,37 @@ class VmDisplayActivity : BaseActivity(), SurfaceHolder.Callback {
      *  - Shift 轻点（Windows 通用「任意键唤醒」兜底）
      * 全程 runCatching，socket 未连接时 enqueue 静默丢弃，不影响显示。
      */
+    /**
+     * v1.9.82：从后台回到显示器时重载整条键鼠输入链路。
+     *
+     * 问题：用户把 APP 划后台杀掉后重开、再进原生显示器——画面正常（display binder
+     * 在 crosvm 进程里，与 APP 无关），但键鼠完全失灵，必须重启 VM 才行。
+     * 根因：托管的输入 socket 原本挂在非 daemon 的 libsu root 服务进程里，APP 被杀时
+     * 该进程一起退出、socket 关闭；crosvm 只在 VM 启动时 connect 一次，挂断后永久
+     * 不再读输入 —— 于是 APP 重开后即使重新 bind，crosvm 那侧已是死连接。
+     *
+     * 修复分两层：
+     *  1) root 服务改 daemon 常驻（见 InputServiceClient / bindRoot），APP 被杀也不退出，
+     *     socket 与 crosvm 的 peer 连接一直保住；
+     *  2) 这里在每次回前台时确认 binder 连接、重建可能丢失的 listener、重启写线程，
+     *     并重置触摸板对齐状态，让第一下触摸重新校准光标。
+     */
+    private fun reloadInputChain() {
+        runCatching {
+            InputServiceClient.ensureListening(this)   // 新进程：重新 bind 到 daemon 服务
+            InputServiceClient.reload()                // 老进程：补一次 ensureInputListening
+            NativeInputBridge.restart()                // 重启写线程、清空残留半截手势
+            tpInit = false                             // 触摸板光标重新与 guest 对齐
+            Log.i(TAG, "input chain reloaded on resume")
+        }.onFailure { Log.w(TAG, "reloadInputChain failed", it) }
+    }
+
     private fun wakeGuestDisplay() {
         val now = System.currentTimeMillis()
         if (now - lastWakeAt < 3000) return   // 去抖：onResume + focus 双重触发时只发一轮
         lastWakeAt = now
+
+        // v1.9.82：键鼠链路重载已统一放在 onResume（含冷启动/后台返回），这里只发唤醒事件。
 
         fun mouseNudge() {
             runCatching {
@@ -2991,6 +3024,9 @@ class VmDisplayActivity : BaseActivity(), SurfaceHolder.Callback {
         ui.postDelayed({
             if (!isFinishing && !isDestroyed) {
                 syncSoftLock()
+                // v1.9.82：每次进入显示器（含冷启动/杀后台重开）都重载键鼠链路，
+                // 确保 daemon 连接与 4 路 listener 就绪后再操作。唤醒仍只针对后台返回。
+                reloadInputChain()
                 if (returning) wakeGuestDisplay()
             }
         }, 700)

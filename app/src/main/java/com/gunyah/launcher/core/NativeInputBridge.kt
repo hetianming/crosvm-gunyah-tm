@@ -154,4 +154,17 @@ object NativeInputBridge {
         // 不 unbind：root 服务连接是进程级常驻，解绑会杀掉输入 socket（crosvm 只连一次）。
         Log.i(TAG, "stop requested (root service kept alive)")
     }
+
+    /**
+     * v1.9.82：从后台返回显示器时重载写线程。
+     *
+     * 与 [start] 的区别：start 在 running=true 时直接 return；而本方法无条件先 stop
+     * 再 start，保证写线程一定重启、残留的半截手势队列被清空。配合
+     * InputServiceClient.ensureInputListeningNow() 重建 daemon 侧可能丢失的 listener，
+     * 覆盖「APP 划后台被杀 → daemon 保活但连接状态需重新确认」的场景。
+     */
+    fun restart() {
+        stop()
+        start()
+    }
 }
