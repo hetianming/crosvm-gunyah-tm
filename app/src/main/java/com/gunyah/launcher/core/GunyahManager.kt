@@ -135,8 +135,6 @@ object GunyahManager {
         var displayMode: String = "simplefb",
         /** 分辨率 宽x高，如 720x1584；simplefb 与 gpu displays 共用 */
         var resolution: String = "720x1584",
-        /** v1.9.83：界面大小档位对应的 guest 逻辑目标宽度；越小 UI 按钮/字体物理越大。800=标准。 */
-        var uiTargetW: Int = 800,
         var vnc: Boolean = true,
         var vncHost: String = "127.0.0.1",
         var vncPort: Int = 5905,
@@ -1136,7 +1134,6 @@ object GunyahManager {
             cfg.gpuArg = j.optString("gpuArg", cfg.gpuArg)
             cfg.displayMode = j.optString("displayMode", cfg.displayMode)
             cfg.resolution = j.optString("resolution", cfg.resolution)
-            cfg.uiTargetW = j.optInt("uiTargetW", cfg.uiTargetW)
             cfg.vnc = j.optBoolean("vnc", cfg.vnc)
             cfg.vncHost = j.optString("vncHost", cfg.vncHost)
             cfg.vncPort = j.optInt("vncPort", cfg.vncPort)
@@ -1237,7 +1234,6 @@ object GunyahManager {
             put("gpuArg", cfg.gpuArg)
             put("displayMode", cfg.displayMode)
             put("resolution", cfg.resolution)
-            put("uiTargetW", cfg.uiTargetW)
             put("vnc", cfg.vnc)
             put("vncHost", cfg.vncHost)
             put("vncPort", cfg.vncPort)
@@ -1430,32 +1426,13 @@ object GunyahManager {
      * 目标 guest 宽约 800 逻辑像素：1440 宽 → 0.5 档 → 720×1584（项目长期默认档）。
      * 触摸坐标由 native.res 同步换算，缩放后依然 1:1 对应。
      */
-    /**
-     * v1.9.83：按「界面大小」档位把宿主物理分辨率折算成 guest 逻辑分辨率。
-     * targetW 越小 → guest 帧缓冲越小 → crosvm 等比放大到全屏后，固定像素的按钮/字体物理尺寸越大。
-     * 标准档 targetW=800 完全保持历史行为（如 1440 宽 → 720x1584）。
-     */
-    private fun logicalGuestRes(host: Pair<Int, Int>, targetW: Int = 800): Pair<Int, Int> {
+    private fun logicalGuestRes(host: Pair<Int, Int>): Pair<Int, Int> {
         val (hw, hh) = host
         if (hw <= 0 || hh <= 0) return 720 to 1584
-        // 标准档：保持历史 0.5 步进算法，行为完全不变（如 1440 宽 → 720x1584）。
-        if (targetW >= 800) {
-            val scale = (Math.round((hw / 800f).coerceIn(1f, 2.5f) * 2f) / 2f).coerceAtLeast(1f)
-            val w = ((hw / scale).toInt() / 2 * 2).coerceIn(320, 1920)
-            val h = ((hh / scale).toInt() / 2 * 2).coerceIn(320, 4096)
-            return w to h
-        }
-        // v1.9.84：放大档直接按目标宽度设定，宽度硬下限 640 —— Windows 引导管理器
-        // 对 <640 宽的帧缓冲会卡在固件 Start boot option（连开机动画都不出现）。
-        // 保持宿主宽高比；高度触边时反推宽度，避免画面变形。
-        var w = (targetW / 2) * 2
-        w = w.coerceIn(640, 1920)
-        var h = (w.toFloat() * hh / hw).toInt() / 2 * 2
-        h = h.coerceIn(480, 4096)
-        if (h == 4096 || h == 480) {
-            w = (h.toFloat() * hw / hh).toInt() / 2 * 2
-            w = w.coerceIn(640, 1920)
-        }
+        // 0.5 步进，下限 1（不放大，小屏手机保持原生清晰度），上限 2.5（避免过度模糊）
+        val scale = (Math.round((hw / 800f).coerceIn(1f, 2.5f) * 2f) / 2f).coerceAtLeast(1f)
+        val w = ((hw / scale).toInt() / 2 * 2).coerceIn(320, 1920)
+        val h = ((hh / scale).toInt() / 2 * 2).coerceIn(320, 4096)
         return w to h
     }
 
@@ -1488,7 +1465,7 @@ object GunyahManager {
         // APP 能做的是保证 buffer 方向/尺寸与 Linux 一致，不人为制造第三种比例。
         // native.res 同步写 rw/rh，触摸基准仍 1:1。
         val autoRes = cfg.displayBackend == "android" || cfg.resolution.equals("auto", true)
-        val (rw, rh) = if (autoRes) logicalGuestRes(hostRes, cfg.uiTargetW) else parseResolution(cfg.resolution)
+        val (rw, rh) = if (autoRes) logicalGuestRes(hostRes) else parseResolution(cfg.resolution)
         // simplefb: EDK2/UEFI 直接把像素写进这片 framebuffer，VNC 抓 screen=simplefb 才有画面
         val simplefbArg = "width=$rw,height=$rh,format=a8r8g8b8,poll-hz=60"
         // 平板模式：crosvm 从这个 unix socket 读 virtio_input_event（8 字节/条）。
