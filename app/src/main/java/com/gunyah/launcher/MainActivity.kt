@@ -152,11 +152,23 @@ class MainActivity : BaseActivity() {
     private data class UiSize(val label: String, val targetW: Int, val desc: String)
     private val uiSizes = listOf(
         UiSize("标准", 800, "和原来一样"),
-        UiSize("放大 UI", 600, "按钮约大 1.3 倍"),
-        UiSize("超大 UI", 480, "按钮约大 1.7 倍，字体更清楚"),
+        UiSize("放大 UI", 680, "按钮小幅变大（受 Windows 引导下限限制）"),
+        UiSize("超大 UI", 640, "按钮再大一点；想更大请进系统调 Windows 缩放 150%/200%"),
     )
 
-    private fun uiTargetW(): Int = sp.getInt(K_UI_TARGET_W, 800)
+    /**
+     * v1.9.84：读取界面大小档位并对旧值自愈。
+     * v1.9.83 的「放大 600 / 超大 480」会让 guest 宽 <640，卡在 Windows 固件引导，
+     * 所以升级后把所有 <640 的旧值自动纠正回标准 800，避免用户不改设置也开不了机。
+     */
+    private fun uiTargetW(): Int {
+        val w = sp.getInt(K_UI_TARGET_W, 800)
+        if (w < 640) {
+            setUiTargetW(800)
+            return 800
+        }
+        return w
+    }
     private fun setUiTargetW(w: Int) { sp.edit().putInt(K_UI_TARGET_W, w).apply() }
 
     /** 当前模式实际生效的分辨率（自定义优先，否则预设）。 */
@@ -1370,7 +1382,7 @@ class MainActivity : BaseActivity() {
         // v1.9.83：界面大小三档 —— 真正决定 Win11 窗口按钮/字体物理大小的是 guest 逻辑分辨率。
         // 原生显示模式下手填分辨率被 logicalGuestRes 忽略，所以这里直接调它的目标宽度，重启 VM 生效。
         val uiSizeTitle = TextView(this).apply {
-            text = "🔍 界面大小（Win11 按钮太小点不到？选大一档，重启 VM 生效）"
+            text = "🔍 界面大小（按钮太小点不到？可选大一档，重启 VM 生效）"
             textSize = 13f; setTextColor(Glass.indicator())
         }
         fun uiSizeBtn(sz: UiSize): Button = Button(this).apply {

@@ -1438,10 +1438,24 @@ object GunyahManager {
     private fun logicalGuestRes(host: Pair<Int, Int>, targetW: Int = 800): Pair<Int, Int> {
         val (hw, hh) = host
         if (hw <= 0 || hh <= 0) return 720 to 1584
-        // 0.5 步进，下限 1（不放大）；上限放宽到 4，供「超大 UI」把按钮放到最大
-        val scale = (Math.round((hw / targetW.toFloat()).coerceIn(1f, 4f) * 2f) / 2f).coerceAtLeast(1f)
-        val w = ((hw / scale).toInt() / 2 * 2).coerceIn(320, 1920)
-        val h = ((hh / scale).toInt() / 2 * 2).coerceIn(320, 4096)
+        // 标准档：保持历史 0.5 步进算法，行为完全不变（如 1440 宽 → 720x1584）。
+        if (targetW >= 800) {
+            val scale = (Math.round((hw / 800f).coerceIn(1f, 2.5f) * 2f) / 2f).coerceAtLeast(1f)
+            val w = ((hw / scale).toInt() / 2 * 2).coerceIn(320, 1920)
+            val h = ((hh / scale).toInt() / 2 * 2).coerceIn(320, 4096)
+            return w to h
+        }
+        // v1.9.84：放大档直接按目标宽度设定，宽度硬下限 640 —— Windows 引导管理器
+        // 对 <640 宽的帧缓冲会卡在固件 Start boot option（连开机动画都不出现）。
+        // 保持宿主宽高比；高度触边时反推宽度，避免画面变形。
+        var w = (targetW / 2) * 2
+        w = w.coerceIn(640, 1920)
+        var h = (w.toFloat() * hh / hw).toInt() / 2 * 2
+        h = h.coerceIn(480, 4096)
+        if (h == 4096 || h == 480) {
+            w = (h.toFloat() * hw / hh).toInt() / 2 * 2
+            w = w.coerceIn(640, 1920)
+        }
         return w to h
     }
 
